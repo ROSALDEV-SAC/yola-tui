@@ -50,7 +50,7 @@ pub async fn send_prompt(
     prompt: &str,
 ) -> anyhow::Result<reqwest::Response> {
     let url = format!(
-        "{}:{}/api/v1/sessions/{}/chat",
+        "{}:{}/api/v1/sessions/{}/prompt",
         BASE_URL, port, session_id
     );
     let client = reqwest::Client::new();
