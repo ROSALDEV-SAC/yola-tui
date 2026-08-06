@@ -28,6 +28,12 @@ pub struct App {
     pub session_id: Option<String>,
     pub status: String,
     pub is_streaming: bool,
+    pub models: Vec<&'static str>,
+    pub current_model: usize,
+    pub providers: Vec<&'static str>,
+    pub current_provider: usize,
+    pub show_history: bool,
+    pub show_help: bool,
 }
 
 pub struct Message {
@@ -82,6 +88,12 @@ pub async fn run(port: u16) -> anyhow::Result<()> {
         session_id: None,
         status: status_line,
         is_streaming: false,
+        models: vec!["deepseek-v4", "deepseek-v4-flash", "gpt-4o", "claude-3.5-sonnet"],
+        current_model: 0,
+        providers: vec!["openai", "anthropic", "groq"],
+        current_provider: 0,
+        show_history: false,
+        show_help: false,
     };
 
     let (tx, mut rx) = mpsc::unbounded_channel::<AppEvent>();
@@ -123,6 +135,47 @@ async fn event_loop<B: ratatui::backend::Backend>(
                             return Ok(())
                         }
                         KeyCode::Enter => handle_enter(app, &tx),
+                        KeyCode::Char('m')
+                            if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        {
+                            app.current_model = (app.current_model + 1) % app.models.len();
+                            app.status = format!(
+                                "Model: {} | Provider: {}",
+                                app.models[app.current_model], app.providers[app.current_provider]
+                            );
+                        }
+                        KeyCode::Char('p')
+                            if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        {
+                            app.current_provider = (app.current_provider + 1) % app.providers.len();
+                            app.status = format!(
+                                "Model: {} | Provider: {}",
+                                app.models[app.current_model], app.providers[app.current_provider]
+                            );
+                        }
+                        KeyCode::Char('s')
+                            if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        {
+                            app.status = "Conversation saved (placeholder)".into();
+                        }
+                        KeyCode::Char('h')
+                            if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                        {
+                            app.show_history = !app.show_history;
+                            app.status = if app.show_history {
+                                "History panel: ON".into()
+                            } else {
+                                "History panel: OFF".into()
+                            };
+                        }
+                        KeyCode::F(1) => {
+                            app.show_help = !app.show_help;
+                            app.status = if app.show_help {
+                                "Help: ON".into()
+                            } else {
+                                "Help: OFF".into()
+                            };
+                        }
                         KeyCode::Char(c) => {
                             app.input.insert(app.cursor_pos, c);
                             app.cursor_pos += 1;
@@ -387,8 +440,15 @@ fn ui(f: &mut Frame, app: &App) {
     f.render_widget(input_widget, chunks[1]);
 
     // ── Status bar ─────────────────────────────────────────────
+    let status_text = format!(
+        "{} | [M:{} P:{}] [{}]",
+        app.status,
+        app.models[app.current_model],
+        app.providers[app.current_provider],
+        if app.show_history { "HIST" } else { "" }
+    );
     let status_widget =
-        Paragraph::new(Span::styled(&app.status, Style::default().fg(Color::DarkGray)));
+        Paragraph::new(Span::styled(&status_text, Style::default().fg(Color::DarkGray)));
     f.render_widget(status_widget, chunks[2]);
 
     // ── Cursor ─────────────────────────────────────────────────
@@ -396,4 +456,51 @@ fn ui(f: &mut Frame, app: &App) {
         chunks[1].x + app.cursor_pos as u16 + 1,
         chunks[1].y + 1,
     );
+
+    // ── Help overlay ───────────────────────────────────────────
+    if app.show_help {
+        let help_text = Text::from(vec![
+            Line::from(Span::styled("╔═══════════ YOLA-TUI HELP ═══════════╗", Style::default().fg(Color::Cyan))),
+            Line::from(""),
+            Line::from(vec![
+                Span::styled("Ctrl+M", Style::default().fg(Color::Yellow)),
+                Span::raw("  Cycle model (deepseek-v4, gpt-4o, ...)"),
+            ]),
+            Line::from(vec![
+                Span::styled("Ctrl+P", Style::default().fg(Color::Yellow)),
+                Span::raw("  Cycle provider (openai, anthropic, groq)"),
+            ]),
+            Line::from(vec![
+                Span::styled("Ctrl+S", Style::default().fg(Color::Yellow)),
+                Span::raw("  Save current conversation"),
+            ]),
+            Line::from(vec![
+                Span::styled("Ctrl+H", Style::default().fg(Color::Yellow)),
+                Span::raw("  Toggle history panel"),
+            ]),
+            Line::from(vec![
+                Span::styled("F1    ", Style::default().fg(Color::Yellow)),
+                Span::raw("  Show/hide this help"),
+            ]),
+            Line::from(vec![
+                Span::styled("Ctrl+C", Style::default().fg(Color::Yellow)),
+                Span::raw(" or "),
+                Span::styled("Esc", Style::default().fg(Color::Yellow)),
+                Span::raw("  Quit"),
+            ]),
+            Line::from(""),
+            Line::from(Span::styled("╚══════════════════════════════════════╝", Style::default().fg(Color::Cyan))),
+        ]);
+        let area = ratatui::layout::Rect::new(
+            (f.size().width.saturating_sub(44)) / 2,
+            (f.size().height.saturating_sub(11)) / 2,
+            44,
+            11,
+        );
+        let help_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan));
+        let help_para = Paragraph::new(help_text).block(help_block);
+        f.render_widget(help_para, area);
+    }
 }
