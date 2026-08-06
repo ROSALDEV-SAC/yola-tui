@@ -1,0 +1,13 @@
+{
+  "id": "yola-tui",
+  "name": "YOLA TUI",
+  "version": "0.1.3",
+  "author": "ROSALDEV SAC",
+  "description": "Terminal UI de YOLA. Chat interactivo con streaming SSE.",
+  "icon": "\ud83d\udda5\ufe0f",
+  "category": "Construir",
+  "repo": "https://github.com/ROSALDEV-SAC/yola-tui",
+  "permissions": ["daemon"],
+  "entry": "target/release/yola-tui.exe",
+  "checksum": "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+}
